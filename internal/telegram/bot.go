@@ -133,6 +133,8 @@ func (b *Bot) handleCallbackQuery(q *tgbotapi.CallbackQuery) {
 		b.handleOwnerConfirm(q, id)
 	case "owner_decline":
 		b.handleOwnerDecline(q, id)
+	case "owner_decline_r":
+		b.handleOwnerDeclineReason(q, id)
 	}
 }
 

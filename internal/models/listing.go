@@ -44,9 +44,12 @@ type Listing struct {
 	MinimumDays int             `json:"minimum_days"`
 	Images      []string        `json:"images"`
 	// Specs is stored as JSONB — flexible key/value pairs (e.g. weight, capacity, fuel_type)
-	Specs       json.RawMessage `json:"specs"`
-	IsAvailable bool          `json:"is_available"`
-	Status      ListingStatus `json:"status"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	Specs        json.RawMessage `json:"specs"`
+	Year         *int            `json:"year,omitempty"`
+	TotalHours   *int            `json:"total_hours,omitempty"`
+	LastServiced string          `json:"last_serviced,omitempty"`
+	IsAvailable  bool            `json:"is_available"`
+	Status       ListingStatus   `json:"status"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }

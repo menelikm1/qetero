@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/google/uuid"
@@ -194,10 +195,41 @@ func (b *Bot) handleOwnerConfirm(q *tgbotapi.CallbackQuery, idStr string) {
 }
 
 func (b *Bot) handleOwnerDecline(q *tgbotapi.CallbackQuery, idStr string) {
+	// Show reason selection buttons instead of immediately cancelling
+	buttons := [][]tgbotapi.InlineKeyboardButton{
+		{
+			tgbotapi.NewInlineKeyboardButtonData("📅 Dates not available", "owner_decline_r:"+idStr+":dates"),
+			tgbotapi.NewInlineKeyboardButtonData("🔧 In maintenance", "owner_decline_r:"+idStr+":maintenance"),
+		},
+		{
+			tgbotapi.NewInlineKeyboardButtonData("📋 Other reason", "owner_decline_r:"+idStr+":other"),
+		},
+	}
+	edit := tgbotapi.NewEditMessageReplyMarkup(q.Message.Chat.ID, q.Message.MessageID,
+		tgbotapi.NewInlineKeyboardMarkup(buttons...))
+	b.api.Send(edit)
+}
+
+func (b *Bot) handleOwnerDeclineReason(q *tgbotapi.CallbackQuery, idAndReason string) {
 	ctx := context.Background()
-	bookingID, err := uuid.Parse(idStr)
+
+	parts := strings.SplitN(idAndReason, ":", 2)
+	if len(parts) != 2 {
+		return
+	}
+	bookingID, err := uuid.Parse(parts[0])
 	if err != nil {
 		return
+	}
+	reasonCode := parts[1]
+
+	reasonText := map[string]string{
+		"dates":       "Dates not available",
+		"maintenance": "Equipment in maintenance",
+		"other":       "Owner declined",
+	}[reasonCode]
+	if reasonText == "" {
+		reasonText = "Owner declined"
 	}
 
 	booking, err := b.bookings.GetByID(ctx, bookingID)
@@ -205,7 +237,7 @@ func (b *Bot) handleOwnerDecline(q *tgbotapi.CallbackQuery, idStr string) {
 		return
 	}
 
-	b.bookings.UpdateStatus(ctx, bookingID, models.StatusCancelled, "owner declined")
+	b.bookings.UpdateStatus(ctx, bookingID, models.StatusCancelled, reasonText)
 
 	listing, err := b.listings.GetByID(ctx, booking.ListingID)
 	if err != nil {
@@ -213,23 +245,24 @@ func (b *Bot) handleOwnerDecline(q *tgbotapi.CallbackQuery, idStr string) {
 	}
 
 	b.editMessage(q.Message.Chat.ID, q.Message.MessageID,
-		fmt.Sprintf("❌ *Declined* — %s", listing.Title))
+		fmt.Sprintf("❌ *Declined* — %s\nReason: %s", listing.Title, reasonText))
 
 	renter, err := b.users.GetByID(ctx, booking.RenterID)
 	if err != nil || renter.TelegramChatID == nil {
 		return
 	}
 	b.send(*renter.TelegramChatID, fmt.Sprintf(
-		"The owner was unable to accommodate your booking for *%s* on those dates.\n\nYour deposit will be refunded. Contact us if you need help.",
-		listing.Title,
+		"The owner was unable to accommodate your booking for *%s*.\nReason: %s\n\nYour deposit will be refunded. Contact us if you need help.",
+		listing.Title, reasonText,
 	))
 
 	// Alert admin to process refund
 	if b.adminChatID != 0 {
 		b.send(b.adminChatID, fmt.Sprintf(
-			"⚠️ Owner declined booking for *%s* (%s – %s). Process deposit refund to renter: %s (%s).",
+			"⚠️ Owner declined booking for *%s* (%s – %s). Reason: %s\nProcess deposit refund to renter: %s (%s).",
 			listing.Title,
 			booking.StartDate.Format("Jan 2"), booking.EndDate.Format("Jan 2"),
+			reasonText,
 			renter.Name, renter.Phone,
 		))
 	}

@@ -23,6 +23,9 @@ const (
 	StateListingLocation
 	StateListingPrice
 	StateListingMinDays
+	StateListingYear
+	StateListingHours
+	StateListingLastServiced
 	StateListingDescription
 	StateListingPhotos
 

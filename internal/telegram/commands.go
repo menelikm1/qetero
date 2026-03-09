@@ -205,9 +205,21 @@ func (b *Bot) handleListing(msg *tgbotapi.Message, args string) {
 	today := time.Now().Format("2006-01-02")
 	weekLater := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
 
+	var specsLines strings.Builder
+	if l.Year != nil {
+		specsLines.WriteString(fmt.Sprintf("Year: %d\n", *l.Year))
+	}
+	if l.TotalHours != nil {
+		specsLines.WriteString(fmt.Sprintf("Usage hours: %d\n", *l.TotalHours))
+	}
+	if l.LastServiced != "" {
+		specsLines.WriteString(fmt.Sprintf("Last serviced: %s\n", l.LastServiced))
+	}
+
 	detail := fmt.Sprintf(
-		"*%s*\nCategory: %s\nLocation: %s\nPrice: *%.0f ETB/day* (min %d days)\n\n%s\n\nTo book:\n`/book %d %s %s`",
+		"*%s*\nCategory: %s\nLocation: %s\nPrice: *%.0f ETB/day* (min %d days)\n%s\n%s\n\nTo book:\n`/book %d %s %s`",
 		l.Title, l.Category, l.Location, l.PricePerDay, l.MinimumDays,
+		specsLines.String(),
 		l.Description,
 		n, today, weekLater,
 	)
@@ -512,8 +524,39 @@ func (b *Bot) handleWizardStep(msg *tgbotapi.Message, sess *Session) {
 			return
 		}
 		b.sessions.setData(chatID, "min_days", text)
+		b.sessions.setState(chatID, StateListingYear)
+		b.send(chatID, "Year of manufacture? (e.g. 2019)\nType *skip* to leave blank.")
+
+	case StateListingYear:
+		if strings.ToLower(text) != "skip" {
+			yr, err := strconv.Atoi(text)
+			if err != nil || yr < 1950 || yr > 2100 {
+				b.send(chatID, "Enter a valid year (e.g. 2019) or type *skip*.")
+				return
+			}
+			b.sessions.setData(chatID, "year", text)
+		}
+		b.sessions.setState(chatID, StateListingHours)
+		b.send(chatID, "Total usage hours on the machine? (e.g. 3500)\nType *skip* to leave blank.")
+
+	case StateListingHours:
+		if strings.ToLower(text) != "skip" {
+			hrs, err := strconv.Atoi(text)
+			if err != nil || hrs < 0 {
+				b.send(chatID, "Enter a whole number of hours (e.g. 3500) or type *skip*.")
+				return
+			}
+			b.sessions.setData(chatID, "total_hours", text)
+		}
+		b.sessions.setState(chatID, StateListingLastServiced)
+		b.send(chatID, "When was it last serviced? (e.g. Jan 2024, 3 months ago)\nType *skip* to leave blank.")
+
+	case StateListingLastServiced:
+		if strings.ToLower(text) != "skip" && len(text) > 0 {
+			b.sessions.setData(chatID, "last_serviced", text)
+		}
 		b.sessions.setState(chatID, StateListingDescription)
-		b.send(chatID, "Add a description — specs, condition, what's included.\n(e.g. 20T capacity, 1.2m³ bucket, diesel, 2019 model, good condition)")
+		b.send(chatID, "Add a description — condition, what's included, any notes.\n(e.g. Good condition, diesel, comes with operator available on request)")
 
 	case StateListingDescription:
 		if len(text) < 10 {
@@ -575,6 +618,15 @@ func (b *Bot) handleWizardStep(msg *tgbotapi.Message, sess *Session) {
 			Images:      photos,
 			Specs:       json.RawMessage("{}"),
 			IsAvailable: true,
+		}
+		if yr, err := strconv.Atoi(data["year"]); err == nil {
+			listing.Year = &yr
+		}
+		if hrs, err := strconv.Atoi(data["total_hours"]); err == nil {
+			listing.TotalHours = &hrs
+		}
+		if ls := data["last_serviced"]; ls != "" {
+			listing.LastServiced = ls
 		}
 
 		if err := b.listings.Create(ctx, listing); err != nil {
