@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
-	"constructconnect-backend/internal/config"
-	"constructconnect-backend/internal/db"
-	"constructconnect-backend/internal/handlers"
-	"constructconnect-backend/internal/middleware"
+	"qetero/internal/config"
+	"qetero/internal/db"
+	"qetero/internal/handlers"
+	"qetero/internal/middleware"
+	"qetero/internal/telegram"
 )
 
 func main() {
@@ -63,6 +66,17 @@ func main() {
 		v1.PUT("/users/me", userHandler.Update)
 		v1.GET("/users/me/bookings", userHandler.MyBookings)
 		v1.GET("/users/me/listings/bookings", userHandler.IncomingBookings)
+	}
+
+	// Start Telegram bot if token is configured
+	if botToken := os.Getenv("TELEGRAM_BOT_TOKEN"); botToken != "" {
+		bot, err := telegram.New(botToken, pool, cfg.AdminTelegramChatID, cfg.AdminTelebirr)
+		if err != nil {
+			log.Printf("Warning: failed to start Telegram bot: %v", err)
+		} else {
+			go bot.Start(context.Background())
+			log.Println("Telegram bot started")
+		}
 	}
 
 	log.Printf("Server starting on :%s", cfg.Port)

@@ -1,4 +1,4 @@
-# ConstructConnect — Platform Design Document
+# Qetero — Platform Design Document
 **Version:** 1.1
 **Date:** 2026-03-08
 **Market:** Ethiopia (primary)
@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-ConstructConnect is a peer-to-peer rental marketplace for heavy machinery and construction materials in Ethiopia. Owners list equipment they want to monetize during idle periods; renters (contractors, builders, individuals) find and book what they need without buying.
+Qetero is a peer-to-peer rental marketplace for heavy machinery and construction materials in Ethiopia. Owners list equipment they want to monetize during idle periods; renters (contractors, builders, individuals) find and book what they need without buying.
 
 Think Turo, but for excavators, cranes, scaffolding, and concrete mixers — built for the Ethiopian market.
 
@@ -135,7 +135,7 @@ Tracks financial transactions per booking. Manual in MVP, automated via Chapa in
 | id | UUID | Primary key |
 | booking_id | UUID | FK → bookings |
 | amount | DECIMAL(10,2) | In ETB |
-| platform_fee | DECIMAL(10,2) | ConstructConnect's cut |
+| platform_fee | DECIMAL(10,2) | Qetero's cut |
 | owner_payout | DECIMAL(10,2) | What owner receives |
 | status | ENUM | pending, paid, refunded, failed |
 | provider | VARCHAR(50) | chapa, telebirr, manual |
@@ -160,7 +160,7 @@ Post-rental ratings. Bidirectional: renters review listings, owners review rente
 
 ## 5. API Design
 
-Base URL: `https://api.constructconnect.com/v1`
+Base URL: `https://api.qetero.com/v1`
 
 ### Auth
 | Method | Endpoint | Description |
@@ -214,7 +214,7 @@ Base URL: `https://api.constructconnect.com/v1`
 ## 6. Project Structure
 
 ```
-constructconnect-backend/
+qetero-backend/
 ├── internal/
 │   ├── auth/
 │   │   └── jwt.go
@@ -348,7 +348,7 @@ Bot: Booking request sent to owner.
 PORT=8080
 
 # Database
-DATABASE_URL=postgres://postgres:password@localhost:5432/constructconnect?sslmode=disable
+DATABASE_URL=postgres://postgres:password@localhost:5432/qetero?sslmode=disable
 
 # Auth
 JWT_SECRET=change-me-before-deploying

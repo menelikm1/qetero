@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"constructconnect-backend/internal/models"
+	"qetero/internal/models"
 )
 
 type ListingFilter struct {
@@ -35,13 +35,14 @@ func (r *ListingRepo) Create(ctx context.Context, l *models.Listing) error {
 		return err
 	}
 	query := `
-		INSERT INTO listings (id, owner_id, title, category, description, location, price_per_day, minimum_days, images, specs)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
-		RETURNING is_available, created_at, updated_at`
+		INSERT INTO listings (id, owner_id, title, category, description, location, price_per_day, minimum_days, images, specs, is_available, year, total_hours, last_serviced)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14)
+		RETURNING status, is_available, created_at, updated_at`
 	return r.db.QueryRow(ctx, query,
 		l.ID, l.OwnerID, l.Title, l.Category, l.Description,
-		l.Location, l.PricePerDay, l.MinimumDays, l.Images, specsJSON,
-	).Scan(&l.IsAvailable, &l.CreatedAt, &l.UpdatedAt)
+		l.Location, l.PricePerDay, l.MinimumDays, l.Images, specsJSON, l.IsAvailable,
+		l.Year, l.TotalHours, l.LastServiced,
+	).Scan(&l.Status, &l.IsAvailable, &l.CreatedAt, &l.UpdatedAt)
 }
 
 func (r *ListingRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Listing, error) {
@@ -49,12 +50,14 @@ func (r *ListingRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Listin
 	var specsRaw []byte
 	query := `
 		SELECT id, owner_id, title, category, description, location, price_per_day,
-		       minimum_days, images, specs, is_available, created_at, updated_at
+		       minimum_days, images, specs, is_available, status, year, total_hours, last_serviced,
+		       created_at, updated_at
 		FROM listings WHERE id=$1 AND deleted_at IS NULL`
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&l.ID, &l.OwnerID, &l.Title, &l.Category, &l.Description,
 		&l.Location, &l.PricePerDay, &l.MinimumDays, &l.Images, &specsRaw,
-		&l.IsAvailable, &l.CreatedAt, &l.UpdatedAt,
+		&l.IsAvailable, &l.Status, &l.Year, &l.TotalHours, &l.LastServiced,
+		&l.CreatedAt, &l.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -65,7 +68,7 @@ func (r *ListingRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Listin
 
 func (r *ListingRepo) Browse(ctx context.Context, f ListingFilter) ([]models.Listing, error) {
 	args := []any{}
-	conditions := []string{"deleted_at IS NULL", "is_available = true"}
+	conditions := []string{"deleted_at IS NULL", "is_available = true", "status = 'active'"}
 	i := 1
 
 	if f.Category != "" {
@@ -101,7 +104,8 @@ func (r *ListingRepo) Browse(ctx context.Context, f ListingFilter) ([]models.Lis
 
 	query := fmt.Sprintf(`
 		SELECT id, owner_id, title, category, description, location, price_per_day,
-		       minimum_days, images, specs, is_available, created_at, updated_at
+		       minimum_days, images, specs, is_available, status, year, total_hours, last_serviced,
+		       created_at, updated_at
 		FROM listings
 		WHERE %s
 		ORDER BY created_at DESC
@@ -123,7 +127,8 @@ func (r *ListingRepo) Browse(ctx context.Context, f ListingFilter) ([]models.Lis
 		if err := rows.Scan(
 			&l.ID, &l.OwnerID, &l.Title, &l.Category, &l.Description,
 			&l.Location, &l.PricePerDay, &l.MinimumDays, &l.Images, &specsRaw,
-			&l.IsAvailable, &l.CreatedAt, &l.UpdatedAt,
+			&l.IsAvailable, &l.Status, &l.Year, &l.TotalHours, &l.LastServiced,
+			&l.CreatedAt, &l.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -146,6 +151,16 @@ func (r *ListingRepo) Update(ctx context.Context, l *models.Listing) error {
 	_, err = r.db.Exec(ctx, query,
 		l.Title, l.Category, l.Description, l.Location, l.PricePerDay,
 		l.MinimumDays, specsJSON, l.IsAvailable, l.ID, l.OwnerID,
+	)
+	return err
+}
+
+// UpdateStatus sets the listing status and syncs is_available accordingly.
+func (r *ListingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status models.ListingStatus) error {
+	isAvailable := status == models.ListingStatusActive
+	_, err := r.db.Exec(ctx,
+		`UPDATE listings SET status=$1, is_available=$2, updated_at=NOW() WHERE id=$3`,
+		status, isAvailable, id,
 	)
 	return err
 }

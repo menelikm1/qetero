@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"constructconnect-backend/internal/auth"
+	"qetero/internal/auth"
 )
 
 func Auth(jwtSecret string) gin.HandlerFunc {

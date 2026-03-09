@@ -18,7 +18,7 @@ type User struct {
 	ID             uuid.UUID `json:"id"`
 	Name           string    `json:"name"`
 	Phone          string    `json:"phone"`
-	Email          string    `json:"email,omitempty"`
+	Email          *string   `json:"email,omitempty"` // pointer — nullable in DB
 	PasswordHash   string    `json:"-"`
 	Role           UserRole  `json:"role"`
 	TelegramChatID *int64    `json:"telegram_chat_id,omitempty"`

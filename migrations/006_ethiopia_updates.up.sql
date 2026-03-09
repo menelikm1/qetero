@@ -10,6 +10,8 @@ ALTER TABLE bookings
     ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
 
 -- Make phone required, email optional
+-- Set placeholder for any existing rows that have no phone (dev/migration safety)
+UPDATE users SET phone = 'unknown-' || id::text WHERE phone IS NULL OR phone = '';
 ALTER TABLE users
     ALTER COLUMN phone SET NOT NULL,
     ALTER COLUMN email DROP NOT NULL;

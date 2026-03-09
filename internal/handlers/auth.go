@@ -8,10 +8,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
-	"constructconnect-backend/internal/auth"
-	"constructconnect-backend/internal/config"
-	"constructconnect-backend/internal/models"
-	"constructconnect-backend/internal/repository"
+	"qetero/internal/auth"
+	"qetero/internal/config"
+	"qetero/internal/models"
+	"qetero/internal/repository"
 )
 
 type AuthHandler struct {
@@ -50,14 +50,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	user := &models.User{
 		ID:           uuid.New(),
 		Name:         req.Name,
-		Email:        req.Email,
 		Phone:        req.Phone,
 		PasswordHash: string(hash),
 		Role:         req.Role,
 	}
+	if req.Email != "" {
+		user.Email = &req.Email
+	}
 
 	if err := h.users.Create(c.Request.Context(), user); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
+		c.JSON(http.StatusConflict, gin.H{"error": "registration failed", "detail": err.Error()})
 		return
 	}
 
@@ -71,7 +73,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 type loginRequest struct {
-	Email    string `json:"email"    binding:"required,email"`
+	Phone    string `json:"phone"`
+	Email    string `json:"email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -82,7 +85,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, err := h.users.GetByEmail(c.Request.Context(), req.Email)
+	if req.Phone == "" && req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phone or email required"})
+		return
+	}
+
+	var user *models.User
+	var err error
+	if req.Phone != "" {
+		user, err = h.users.GetByPhoneForAuth(c.Request.Context(), req.Phone)
+	} else {
+		user, err = h.users.GetByEmail(c.Request.Context(), req.Email)
+	}
 	if err != nil {
 		// Return same error for both "not found" and "wrong password" to prevent user enumeration
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})

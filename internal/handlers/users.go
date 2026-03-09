@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"constructconnect-backend/internal/repository"
+	"qetero/internal/repository"
 )
 
 type UserHandler struct {

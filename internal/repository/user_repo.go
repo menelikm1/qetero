@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"constructconnect-backend/internal/models"
+	"qetero/internal/models"
 )
 
 type UserRepo struct {
@@ -46,11 +46,11 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, 
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	user := &models.User{}
 	query := `
-		SELECT id, name, email, phone, role, verified, created_at, updated_at
+		SELECT id, name, email, phone, role, telegram_chat_id, verified, created_at, updated_at
 		FROM users WHERE id = $1`
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&user.ID, &user.Name, &user.Email, &user.Phone,
-		&user.Role, &user.Verified, &user.CreatedAt, &user.UpdatedAt,
+		&user.Role, &user.TelegramChatID, &user.Verified, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -62,6 +62,62 @@ func (r *UserRepo) Update(ctx context.Context, id uuid.UUID, name, phone string)
 	_, err := r.db.Exec(ctx,
 		`UPDATE users SET name=$1, phone=$2, updated_at=NOW() WHERE id=$3`,
 		name, phone, id,
+	)
+	return err
+}
+
+func (r *UserRepo) GetByPhoneForAuth(ctx context.Context, phone string) (*models.User, error) {
+	user := &models.User{}
+	query := `
+		SELECT id, name, phone, email, password_hash, role, verified, created_at, updated_at
+		FROM users WHERE phone = $1`
+	err := r.db.QueryRow(ctx, query, phone).Scan(
+		&user.ID, &user.Name, &user.Phone, &user.Email,
+		&user.PasswordHash, &user.Role, &user.Verified,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (r *UserRepo) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
+	user := &models.User{}
+	query := `
+		SELECT id, name, phone, email, role, telegram_chat_id, verified, created_at, updated_at
+		FROM users WHERE phone = $1`
+	err := r.db.QueryRow(ctx, query, phone).Scan(
+		&user.ID, &user.Name, &user.Phone, &user.Email,
+		&user.Role, &user.TelegramChatID, &user.Verified,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (r *UserRepo) GetByChatID(ctx context.Context, chatID int64) (*models.User, error) {
+	user := &models.User{}
+	query := `
+		SELECT id, name, phone, email, role, telegram_chat_id, verified, created_at, updated_at
+		FROM users WHERE telegram_chat_id = $1`
+	err := r.db.QueryRow(ctx, query, chatID).Scan(
+		&user.ID, &user.Name, &user.Phone, &user.Email,
+		&user.Role, &user.TelegramChatID, &user.Verified,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (r *UserRepo) LinkTelegramChatID(ctx context.Context, userID uuid.UUID, chatID int64) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE users SET telegram_chat_id=$1, updated_at=NOW() WHERE id=$2`,
+		chatID, userID,
 	)
 	return err
 }

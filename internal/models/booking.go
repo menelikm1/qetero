@@ -6,6 +6,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type DepositStatus string
+
+const (
+	DepositStatusPending  DepositStatus = "pending"
+	DepositStatusVerified DepositStatus = "verified"
+	DepositStatusRejected DepositStatus = "rejected"
+)
+
 type BookingStatus string
 
 const (
@@ -26,6 +34,8 @@ type Booking struct {
 	TotalDays          int           `json:"total_days"`
 	TotalPrice         float64       `json:"total_price"`
 	Status             BookingStatus `json:"status"`
+	DepositRef         string        `json:"deposit_ref,omitempty"`
+	DepositStatus      DepositStatus `json:"deposit_status"`
 	CancellationReason string        `json:"cancellation_reason,omitempty"`
 	CreatedAt          time.Time     `json:"created_at"`
 	UpdatedAt          time.Time     `json:"updated_at"`
