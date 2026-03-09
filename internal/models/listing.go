@@ -7,6 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type ListingStatus string
+
+const (
+	ListingStatusPendingReview ListingStatus = "pending_review"
+	ListingStatusActive        ListingStatus = "active"
+	ListingStatusRejected      ListingStatus = "rejected"
+)
+
 type ListingCategory string
 
 const (
@@ -37,7 +45,8 @@ type Listing struct {
 	Images      []string        `json:"images"`
 	// Specs is stored as JSONB — flexible key/value pairs (e.g. weight, capacity, fuel_type)
 	Specs       json.RawMessage `json:"specs"`
-	IsAvailable bool            `json:"is_available"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	IsAvailable bool          `json:"is_available"`
+	Status      ListingStatus `json:"status"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
 }

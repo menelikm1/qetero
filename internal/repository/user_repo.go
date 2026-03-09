@@ -46,11 +46,11 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, 
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	user := &models.User{}
 	query := `
-		SELECT id, name, email, phone, role, verified, created_at, updated_at
+		SELECT id, name, email, phone, role, telegram_chat_id, verified, created_at, updated_at
 		FROM users WHERE id = $1`
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&user.ID, &user.Name, &user.Email, &user.Phone,
-		&user.Role, &user.Verified, &user.CreatedAt, &user.UpdatedAt,
+		&user.Role, &user.TelegramChatID, &user.Verified, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

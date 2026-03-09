@@ -70,7 +70,7 @@ func main() {
 
 	// Start Telegram bot if token is configured
 	if botToken := os.Getenv("TELEGRAM_BOT_TOKEN"); botToken != "" {
-		bot, err := telegram.New(botToken, pool)
+		bot, err := telegram.New(botToken, pool, cfg.AdminTelegramChatID, cfg.AdminTelebirr)
 		if err != nil {
 			log.Printf("Warning: failed to start Telegram bot: %v", err)
 		} else {

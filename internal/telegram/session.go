@@ -25,6 +25,9 @@ const (
 	StateListingMinDays
 	StateListingDescription
 	StateListingPhotos
+
+	// Booking deposit
+	StateBookingDeposit
 )
 
 // Session holds per-chat state — browse results and multi-step wizard state.

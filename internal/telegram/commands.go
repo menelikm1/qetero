@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -315,13 +316,27 @@ func (b *Bot) handleBook(msg *tgbotapi.Message, args string) {
 		return
 	}
 
+	deposit := math.Round(booking.TotalPrice * 0.20)
+
+	if b.adminChatID == 0 || b.adminTelebirr == "" {
+		// Dev mode — no deposit flow, go straight to owner notification
+		listing2, _ := b.listings.GetByID(ctx, booking.ListingID)
+		b.notifyOwnerBookingRequest(ctx, booking, listing2, user)
+		b.send(msg.Chat.ID, fmt.Sprintf(
+			"Booking request sent!\n\n*%s*\n%s – %s (%d days)\nTotal: *%.0f ETB*\n\nYou'll be notified when the owner confirms.",
+			listing.Title, start.Format("Jan 2"), end.Format("Jan 2, 2006"), days, booking.TotalPrice,
+		))
+		return
+	}
+
+	// Enter deposit collection state
+	b.sessions.setState(msg.Chat.ID, StateBookingDeposit)
+	b.sessions.setData(msg.Chat.ID, "booking_id", booking.ID.String())
+
 	b.send(msg.Chat.ID, fmt.Sprintf(
-		"Booking request sent!\n\n*%s*\n%s to %s (%d days)\nTotal: *%.0f ETB*\n\nPayment: arrange directly with the owner via Telebirr, CBE, or cash.\n\nYou'll be notified when the owner confirms.",
-		listing.Title,
-		start.Format("Jan 2"),
-		end.Format("Jan 2, 2006"),
-		days,
-		booking.TotalPrice,
+		"Booking created!\n\n*%s*\n%s – %s (%d days)\nTotal: *%.0f ETB*\n\n*To confirm your booking, send a 20%% deposit:*\n\nAmount: *%.0f ETB*\nTelebirr: *%s* (Qetero)\n\nAfter sending, paste your transaction reference here.",
+		listing.Title, start.Format("Jan 2"), end.Format("Jan 2, 2006"), days,
+		booking.TotalPrice, deposit, b.adminTelebirr,
 	))
 }
 
@@ -569,10 +584,54 @@ func (b *Bot) handleWizardStep(msg *tgbotapi.Message, sess *Session) {
 		}
 
 		b.sessions.reset(chatID)
-		b.send(chatID, fmt.Sprintf(
-			"Listing created!\n\n*%s*\n%s — %.0f ETB/day (min %d days)\n\nRenters can now find and book your equipment.",
-			listing.Title, listing.Location, listing.PricePerDay, listing.MinimumDays,
-		))
+
+		owner, err := b.users.GetByChatID(ctx, chatID)
+		if err == nil {
+			b.notifyAdminNewListing(ctx, listing, owner)
+		}
+
+		if b.adminChatID != 0 {
+			b.send(chatID, fmt.Sprintf(
+				"Listing submitted for review!\n\n*%s*\n%s — %.0f ETB/day\n\nOur team will review it shortly and notify you once it's live.",
+				listing.Title, listing.Location, listing.PricePerDay,
+			))
+		}
+
+	case StateBookingDeposit:
+		ref := strings.TrimSpace(text)
+		if len(ref) < 4 {
+			b.send(chatID, "Please paste your Telebirr transaction reference (e.g. TXN-ABC123456).")
+			return
+		}
+
+		bookingID, err := uuid.Parse(sess.Data["booking_id"])
+		if err != nil {
+			b.sessions.reset(chatID)
+			b.send(chatID, "Something went wrong. Please try booking again.")
+			return
+		}
+
+		if err := b.bookings.UpdateDeposit(ctx, bookingID, ref, models.DepositStatusPending); err != nil {
+			b.send(chatID, "Failed to save your reference. Please try again.")
+			return
+		}
+
+		booking, err := b.bookings.GetByID(ctx, bookingID)
+		if err != nil {
+			return
+		}
+		listing, err := b.listings.GetByID(ctx, booking.ListingID)
+		if err != nil {
+			return
+		}
+		renter, err := b.users.GetByChatID(ctx, chatID)
+		if err != nil {
+			return
+		}
+
+		b.sessions.reset(chatID)
+		b.send(chatID, "Thanks! We've received your reference and are verifying the payment. You'll hear back shortly.")
+		b.notifyAdminNewDeposit(ctx, booking, listing, renter)
 	}
 }
 

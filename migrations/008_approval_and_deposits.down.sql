@@ -1,0 +1,3 @@
+ALTER TABLE listings DROP COLUMN IF EXISTS status;
+ALTER TABLE bookings DROP COLUMN IF EXISTS deposit_ref;
+ALTER TABLE bookings DROP COLUMN IF EXISTS deposit_status;

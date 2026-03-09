@@ -38,17 +38,28 @@ func (r *BookingRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Bookin
 	b := &models.Booking{}
 	query := `
 		SELECT id, listing_id, renter_id, owner_id, start_date, end_date,
-		       total_days, total_price, status, COALESCE(cancellation_reason, ''), created_at, updated_at
+		       total_days, total_price, status, deposit_status,
+		       COALESCE(deposit_ref, ''), COALESCE(cancellation_reason, ''),
+		       created_at, updated_at
 		FROM bookings WHERE id=$1`
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&b.ID, &b.ListingID, &b.RenterID, &b.OwnerID,
 		&b.StartDate, &b.EndDate, &b.TotalDays, &b.TotalPrice,
-		&b.Status, &b.CancellationReason, &b.CreatedAt, &b.UpdatedAt,
+		&b.Status, &b.DepositStatus, &b.DepositRef, &b.CancellationReason,
+		&b.CreatedAt, &b.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
+}
+
+func (r *BookingRepo) UpdateDeposit(ctx context.Context, id uuid.UUID, ref string, status models.DepositStatus) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE bookings SET deposit_ref=$1, deposit_status=$2, updated_at=NOW() WHERE id=$3`,
+		ref, status, id,
+	)
+	return err
 }
 
 func (r *BookingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status models.BookingStatus, reason string) error {
