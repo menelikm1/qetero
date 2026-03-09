@@ -58,12 +58,12 @@ func (b *Bot) Start(ctx context.Context) {
 func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	sess := b.sessions.get(msg.Chat.ID)
 
-	// If mid-wizard, handle text input — but let commands interrupt and restart
+	// If mid-wizard, handle input — but let commands interrupt and restart
 	if sess.State != StateIdle {
 		if msg.IsCommand() {
 			b.sessions.reset(msg.Chat.ID)
 			// fall through to command handling below
-		} else {
+		} else if msg.Photo != nil || msg.Text != "" {
 			b.handleWizardStep(msg, sess)
 			return
 		}
@@ -107,5 +107,14 @@ func (b *Bot) send(chatID int64, text string) {
 	msg.ParseMode = "Markdown"
 	if _, err := b.api.Send(msg); err != nil {
 		log.Printf("failed to send message to %d: %v", chatID, err)
+	}
+}
+
+func (b *Bot) sendPhoto(chatID int64, fileID, caption string) {
+	photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileID(fileID))
+	photo.Caption = caption
+	photo.ParseMode = "Markdown"
+	if _, err := b.api.Send(photo); err != nil {
+		log.Printf("failed to send photo to %d: %v", chatID, err)
 	}
 }

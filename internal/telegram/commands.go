@@ -204,12 +204,18 @@ func (b *Bot) handleListing(msg *tgbotapi.Message, args string) {
 	today := time.Now().Format("2006-01-02")
 	weekLater := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
 
-	b.send(msg.Chat.ID, fmt.Sprintf(
+	detail := fmt.Sprintf(
 		"*%s*\nCategory: %s\nLocation: %s\nPrice: *%.0f ETB/day* (min %d days)\n\n%s\n\nTo book:\n`/book %d %s %s`",
 		l.Title, l.Category, l.Location, l.PricePerDay, l.MinimumDays,
 		l.Description,
 		n, today, weekLater,
-	))
+	)
+
+	if len(l.Images) > 0 {
+		b.sendPhoto(msg.Chat.ID, l.Images[0], detail)
+	} else {
+		b.send(msg.Chat.ID, detail)
+	}
 }
 
 // ── /book ────────────────────────────────────────────────────────────────────
@@ -499,8 +505,45 @@ func (b *Bot) handleWizardStep(msg *tgbotapi.Message, sess *Session) {
 			b.send(chatID, "Please add a description (at least 10 characters) to help renters.")
 			return
 		}
+		b.sessions.setData(chatID, "description", text)
+		b.sessions.setState(chatID, StateListingPhotos)
+		b.send(chatID, "Add up to 3 photos of your equipment.\n\nSend a photo now, or type *skip* to publish without photos.")
 
+	case StateListingPhotos:
+		count := 0
+		if c, err := strconv.Atoi(sess.Data["photo_count"]); err == nil {
+			count = c
+		}
+
+		// User wants to finish
+		if msg.Photo == nil {
+			if strings.ToLower(text) != "skip" && strings.ToLower(text) != "done" {
+				b.send(chatID, "Send a photo or type *done* to publish.")
+				return
+			}
+		} else {
+			// Take highest resolution photo (last in slice)
+			fileID := msg.Photo[len(msg.Photo)-1].FileID
+			count++
+			b.sessions.setData(chatID, fmt.Sprintf("photo_%d", count), fileID)
+			b.sessions.setData(chatID, "photo_count", strconv.Itoa(count))
+
+			if count < 3 {
+				b.send(chatID, fmt.Sprintf("Photo %d saved. Send another or type *done*.", count))
+				return
+			}
+			// Hit the 3 photo limit — fall through to create listing
+		}
+
+		// Collect photos
 		data := sess.Data
+		photos := []string{}
+		for i := 1; i <= count; i++ {
+			if id := data[fmt.Sprintf("photo_%d", i)]; id != "" {
+				photos = append(photos, id)
+			}
+		}
+
 		ownerID, _ := uuid.Parse(data["owner_id"])
 		price, _ := strconv.ParseFloat(data["price"], 64)
 		minDays, _ := strconv.Atoi(data["min_days"])
@@ -513,8 +556,8 @@ func (b *Bot) handleWizardStep(msg *tgbotapi.Message, sess *Session) {
 			Location:    data["location"],
 			PricePerDay: price,
 			MinimumDays: minDays,
-			Description: text,
-			Images:      []string{},
+			Description: data["description"],
+			Images:      photos,
 			Specs:       json.RawMessage("{}"),
 			IsAvailable: true,
 		}

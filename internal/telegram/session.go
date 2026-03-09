@@ -24,6 +24,7 @@ const (
 	StateListingPrice
 	StateListingMinDays
 	StateListingDescription
+	StateListingPhotos
 )
 
 // Session holds per-chat state — browse results and multi-step wizard state.
