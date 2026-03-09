@@ -66,6 +66,22 @@ func (r *UserRepo) Update(ctx context.Context, id uuid.UUID, name, phone string)
 	return err
 }
 
+func (r *UserRepo) GetByPhoneForAuth(ctx context.Context, phone string) (*models.User, error) {
+	user := &models.User{}
+	query := `
+		SELECT id, name, phone, email, password_hash, role, verified, created_at, updated_at
+		FROM users WHERE phone = $1`
+	err := r.db.QueryRow(ctx, query, phone).Scan(
+		&user.ID, &user.Name, &user.Phone, &user.Email,
+		&user.PasswordHash, &user.Role, &user.Verified,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
 func (r *UserRepo) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
 	user := &models.User{}
 	query := `

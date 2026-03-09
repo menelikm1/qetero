@@ -73,7 +73,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 type loginRequest struct {
-	Email    string `json:"email"    binding:"required,email"`
+	Phone    string `json:"phone"`
+	Email    string `json:"email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -84,7 +85,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, err := h.users.GetByEmail(c.Request.Context(), req.Email)
+	if req.Phone == "" && req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phone or email required"})
+		return
+	}
+
+	var user *models.User
+	var err error
+	if req.Phone != "" {
+		user, err = h.users.GetByPhoneForAuth(c.Request.Context(), req.Phone)
+	} else {
+		user, err = h.users.GetByEmail(c.Request.Context(), req.Email)
+	}
 	if err != nil {
 		// Return same error for both "not found" and "wrong password" to prevent user enumeration
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})

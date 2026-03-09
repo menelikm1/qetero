@@ -56,6 +56,19 @@ func (b *Bot) Start(ctx context.Context) {
 }
 
 func (b *Bot) handleMessage(msg *tgbotapi.Message) {
+	sess := b.sessions.get(msg.Chat.ID)
+
+	// If mid-wizard, handle text input — but let commands interrupt and restart
+	if sess.State != StateIdle {
+		if msg.IsCommand() {
+			b.sessions.reset(msg.Chat.ID)
+			// fall through to command handling below
+		} else {
+			b.handleWizardStep(msg, sess)
+			return
+		}
+	}
+
 	if !msg.IsCommand() {
 		return
 	}
@@ -68,6 +81,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.handleStart(msg)
 	case "help":
 		b.handleHelp(msg)
+	case "register":
+		b.handleRegister(msg)
 	case "link":
 		b.handleLink(msg, args)
 	case "browse":
@@ -80,6 +95,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.handleBook(msg, args)
 	case "mybookings":
 		b.handleMyBookings(msg)
+	case "newlisting":
+		b.handleNewListing(msg)
 	default:
 		b.send(msg.Chat.ID, "Unknown command. Type /help to see available commands.")
 	}
