@@ -13,3 +13,7 @@
 
 # Environment — never commit secrets
 .env
+
+# Internal docs — not for public repo
+CLAUDE.md
+DESIGN.md
