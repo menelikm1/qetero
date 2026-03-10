@@ -42,6 +42,7 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 *Account*
 /register — Create a new Qetero account
 /link [phone] — Link an existing account by phone
+/cancel — Cancel whatever you're currently doing
 
 *Browse & Book*
 /browse — Browse all available equipment
@@ -67,6 +68,18 @@ func (b *Bot) handleRegister(msg *tgbotapi.Message) {
 
 	b.sessions.setState(msg.Chat.ID, StateRegisterName)
 	b.send(msg.Chat.ID, "Let's create your Qetero account.\n\nWhat's your full name?")
+}
+
+// ── /cancel ──────────────────────────────────────────────────────────────────
+
+func (b *Bot) handleCancel(msg *tgbotapi.Message) {
+	sess := b.sessions.get(msg.Chat.ID)
+	if sess.State == StateIdle {
+		b.send(msg.Chat.ID, "Nothing to cancel.")
+		return
+	}
+	b.sessions.reset(msg.Chat.ID)
+	b.send(msg.Chat.ID, "Cancelled. Type /help to see available commands.")
 }
 
 // ── /link ────────────────────────────────────────────────────────────────────
