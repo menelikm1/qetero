@@ -89,6 +89,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.handleStart(msg)
 	case "help":
 		b.handleHelp(msg)
+	case "cancel":
+		b.handleCancel(msg)
 	case "register":
 		b.handleRegister(msg)
 	case "link":
