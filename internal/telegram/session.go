@@ -31,6 +31,10 @@ const (
 
 	// Booking deposit
 	StateBookingDeposit
+
+	// Block dates wizard
+	StateBlockDatesStart
+	StateBlockDatesEnd
 )
 
 // Session holds per-chat state — browse results and multi-step wizard state.

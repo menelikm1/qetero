@@ -53,6 +53,7 @@ func (b *Bot) handleHelp(msg *tgbotapi.Message) {
 
 *Owners*
 /newlisting — Add your equipment
+/mylistings — Manage your listings
 
 *Categories:* excavator, crane, scaffold, compactor, loader, forklift, generator, water\_truck, concrete\_mixer, dump\_truck, dozer, roller, other`)
 }
@@ -123,6 +124,64 @@ func (b *Bot) handleNewListing(msg *tgbotapi.Message) {
 	b.sessions.setState(msg.Chat.ID, StateListingTitle)
 	b.sessions.setData(msg.Chat.ID, "owner_id", user.ID.String())
 	b.send(msg.Chat.ID, "Let's add your equipment to Qetero.\n\nWhat's the title? (e.g. CAT 320 Excavator, 50T Liebherr Crane)")
+}
+
+// ── /mylistings ──────────────────────────────────────────────────────────────
+
+func (b *Bot) handleMyListings(msg *tgbotapi.Message) {
+	ctx := context.Background()
+	user, err := b.users.GetByChatID(ctx, msg.Chat.ID)
+	if err != nil {
+		b.send(msg.Chat.ID, "You need to link your account first.\nUse /register or /link.")
+		return
+	}
+
+	listings, err := b.listings.GetByOwner(ctx, user.ID)
+	if err != nil {
+		b.send(msg.Chat.ID, "Failed to fetch your listings.")
+		return
+	}
+	if len(listings) == 0 {
+		b.send(msg.Chat.ID, "You have no listings yet.\nUse /newlisting to add your equipment.")
+		return
+	}
+
+	for _, l := range listings {
+		statusIcon := map[models.ListingStatus]string{
+			models.ListingStatusActive:        "🟢",
+			models.ListingStatusPendingReview: "🟡",
+			models.ListingStatusRejected:      "🔴",
+		}[l.Status]
+		availIcon := ""
+		if l.Status == models.ListingStatusActive && !l.IsAvailable {
+			availIcon = " ⏸"
+		}
+
+		text := fmt.Sprintf("%s *%s*%s\n%s — %.0f ETB/day\nStatus: %s",
+			statusIcon, l.Title, availIcon,
+			l.Location, l.PricePerDay, l.Status,
+		)
+
+		buttons := [][]tgbotapi.InlineKeyboardButton{}
+		if l.Status == models.ListingStatusActive {
+			if l.IsAvailable {
+				buttons = append(buttons, []tgbotapi.InlineKeyboardButton{
+					tgbotapi.NewInlineKeyboardButtonData("⏸ Pause", "listing_pause:"+l.ID.String()),
+					tgbotapi.NewInlineKeyboardButtonData("📅 Block dates", "listing_block:"+l.ID.String()),
+				})
+			} else {
+				buttons = append(buttons, []tgbotapi.InlineKeyboardButton{
+					tgbotapi.NewInlineKeyboardButtonData("▶️ Resume", "listing_resume:"+l.ID.String()),
+					tgbotapi.NewInlineKeyboardButtonData("📅 Block dates", "listing_block:"+l.ID.String()),
+				})
+			}
+		}
+		buttons = append(buttons, []tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("🗑 Delete listing", "listing_delete:"+l.ID.String()),
+		})
+
+		b.sendWithButtons(msg.Chat.ID, text, buttons)
+	}
 }
 
 // ── /browse ──────────────────────────────────────────────────────────────────
@@ -661,6 +720,59 @@ func (b *Bot) handleWizardStep(msg *tgbotapi.Message, sess *Session) {
 				listing.Title, listing.Location, listing.PricePerDay,
 			))
 		}
+
+	case StateBlockDatesStart:
+		if _, err := time.Parse("2006-01-02", text); err != nil {
+			b.send(chatID, "Please enter the start date in YYYY-MM-DD format (e.g. 2026-04-01).")
+			return
+		}
+		b.sessions.setData(chatID, "block_start", text)
+		b.sessions.setState(chatID, StateBlockDatesEnd)
+		b.send(chatID, "Enter the end date (YYYY-MM-DD):")
+
+	case StateBlockDatesEnd:
+		end, err := time.Parse("2006-01-02", text)
+		if err != nil {
+			b.send(chatID, "Please enter the end date in YYYY-MM-DD format.")
+			return
+		}
+		start, _ := time.Parse("2006-01-02", sess.Data["block_start"])
+		if !end.After(start) {
+			b.send(chatID, "End date must be after start date.")
+			return
+		}
+
+		listingID, err := uuid.Parse(sess.Data["block_listing_id"])
+		if err != nil {
+			b.sessions.reset(chatID)
+			b.send(chatID, "Something went wrong. Try again from /mylistings.")
+			return
+		}
+
+		user, err := b.users.GetByChatID(ctx, chatID)
+		if err != nil {
+			b.sessions.reset(chatID)
+			return
+		}
+
+		block := &models.ListingBlock{
+			ID:        uuid.New(),
+			ListingID: listingID,
+			OwnerID:   user.ID,
+			StartDate: start,
+			EndDate:   end,
+		}
+		if err := b.blocks.Create(ctx, block); err != nil {
+			b.sessions.reset(chatID)
+			b.send(chatID, "Failed to block dates. Please try again.")
+			return
+		}
+
+		b.sessions.reset(chatID)
+		b.send(chatID, fmt.Sprintf(
+			"📅 Dates blocked: *%s – %s*\n\nNo bookings can be made for those dates.",
+			start.Format("Jan 2"), end.Format("Jan 2, 2006"),
+		))
 
 	case StateBookingDeposit:
 		ref := strings.TrimSpace(text)

@@ -16,6 +16,7 @@ type Bot struct {
 	users         *repository.UserRepo
 	listings      *repository.ListingRepo
 	bookings      *repository.BookingRepo
+	blocks        *repository.BlockRepo
 	sessions      *SessionStore
 	adminChatID   int64  // 0 = no admin, listings auto-approved
 	adminTelebirr string // Telebirr number for deposit payments
@@ -33,6 +34,7 @@ func New(token string, db *pgxpool.Pool, adminChatID int64, adminTelebirr string
 		users:         repository.NewUserRepo(db),
 		listings:      repository.NewListingRepo(db),
 		bookings:      repository.NewBookingRepo(db),
+		blocks:        repository.NewBlockRepo(db),
 		sessions:      newSessionStore(),
 		adminChatID:   adminChatID,
 		adminTelebirr: adminTelebirr,
@@ -107,6 +109,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.handleMyBookings(msg)
 	case "newlisting":
 		b.handleNewListing(msg)
+	case "mylistings":
+		b.handleMyListings(msg)
 	default:
 		b.send(msg.Chat.ID, "Unknown command. Type /help to see available commands.")
 	}
@@ -137,6 +141,14 @@ func (b *Bot) handleCallbackQuery(q *tgbotapi.CallbackQuery) {
 		b.handleOwnerDecline(q, id)
 	case "owner_decline_r":
 		b.handleOwnerDeclineReason(q, id)
+	case "listing_pause":
+		b.handleListingPause(q, id)
+	case "listing_resume":
+		b.handleListingResume(q, id)
+	case "listing_delete":
+		b.handleListingDelete(q, id)
+	case "listing_block":
+		b.handleListingBlockStart(q, id)
 	}
 }
 

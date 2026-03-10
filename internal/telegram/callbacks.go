@@ -11,6 +11,68 @@ import (
 	"qetero/internal/models"
 )
 
+// ── Owner listing management ──────────────────────────────────────────────────
+
+func (b *Bot) handleListingPause(q *tgbotapi.CallbackQuery, idStr string) {
+	ctx := context.Background()
+	listingID, err := uuid.Parse(idStr)
+	if err != nil {
+		return
+	}
+	owner, err := b.users.GetByChatID(ctx, q.Message.Chat.ID)
+	if err != nil {
+		return
+	}
+	if err := b.listings.ToggleAvailable(ctx, listingID, owner.ID, false); err != nil {
+		b.send(q.Message.Chat.ID, "Failed to pause listing.")
+		return
+	}
+	b.editMessage(q.Message.Chat.ID, q.Message.MessageID,
+		"⏸ Listing paused — it won't appear in search results until you resume it.")
+}
+
+func (b *Bot) handleListingResume(q *tgbotapi.CallbackQuery, idStr string) {
+	ctx := context.Background()
+	listingID, err := uuid.Parse(idStr)
+	if err != nil {
+		return
+	}
+	owner, err := b.users.GetByChatID(ctx, q.Message.Chat.ID)
+	if err != nil {
+		return
+	}
+	if err := b.listings.ToggleAvailable(ctx, listingID, owner.ID, true); err != nil {
+		b.send(q.Message.Chat.ID, "Failed to resume listing.")
+		return
+	}
+	b.editMessage(q.Message.Chat.ID, q.Message.MessageID,
+		"▶️ Listing resumed — it's now live in search results.")
+}
+
+func (b *Bot) handleListingDelete(q *tgbotapi.CallbackQuery, idStr string) {
+	ctx := context.Background()
+	listingID, err := uuid.Parse(idStr)
+	if err != nil {
+		return
+	}
+	owner, err := b.users.GetByChatID(ctx, q.Message.Chat.ID)
+	if err != nil {
+		return
+	}
+	if err := b.listings.Delete(ctx, listingID, owner.ID); err != nil {
+		b.send(q.Message.Chat.ID, "Failed to delete listing.")
+		return
+	}
+	b.editMessage(q.Message.Chat.ID, q.Message.MessageID,
+		"🗑 Listing deleted.")
+}
+
+func (b *Bot) handleListingBlockStart(q *tgbotapi.CallbackQuery, idStr string) {
+	b.sessions.setState(q.Message.Chat.ID, StateBlockDatesStart)
+	b.sessions.setData(q.Message.Chat.ID, "block_listing_id", idStr)
+	b.send(q.Message.Chat.ID, "Enter the start date to block (YYYY-MM-DD):")
+}
+
 // ── Listing approval ──────────────────────────────────────────────────────────
 
 func (b *Bot) handleListingApprove(q *tgbotapi.CallbackQuery, idStr string) {

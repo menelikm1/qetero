@@ -165,6 +165,46 @@ func (r *ListingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status mod
 	return err
 }
 
+func (r *ListingRepo) GetByOwner(ctx context.Context, ownerID uuid.UUID) ([]models.Listing, error) {
+	query := `
+		SELECT id, owner_id, title, category, description, location, price_per_day,
+		       minimum_days, images, specs, is_available, status, year, total_hours, last_serviced,
+		       created_at, updated_at
+		FROM listings
+		WHERE owner_id = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC`
+	rows, err := r.db.Query(ctx, query, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var listings []models.Listing
+	for rows.Next() {
+		var l models.Listing
+		var specsRaw []byte
+		if err := rows.Scan(
+			&l.ID, &l.OwnerID, &l.Title, &l.Category, &l.Description,
+			&l.Location, &l.PricePerDay, &l.MinimumDays, &l.Images, &specsRaw,
+			&l.IsAvailable, &l.Status, &l.Year, &l.TotalHours, &l.LastServiced,
+			&l.CreatedAt, &l.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		l.Specs = specsRaw
+		listings = append(listings, l)
+	}
+	return listings, rows.Err()
+}
+
+func (r *ListingRepo) ToggleAvailable(ctx context.Context, id, ownerID uuid.UUID, available bool) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE listings SET is_available=$1, updated_at=NOW() WHERE id=$2 AND owner_id=$3 AND status='active'`,
+		available, id, ownerID,
+	)
+	return err
+}
+
 func (r *ListingRepo) Delete(ctx context.Context, id, ownerID uuid.UUID) error {
 	_, err := r.db.Exec(ctx,
 		`UPDATE listings SET deleted_at=NOW() WHERE id=$1 AND owner_id=$2`,

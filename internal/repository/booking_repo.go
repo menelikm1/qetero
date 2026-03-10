@@ -70,13 +70,17 @@ func (r *BookingRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status mod
 	return err
 }
 
-// HasConflict returns true if the listing already has a confirmed/active booking overlapping the given dates.
+// HasConflict returns true if the listing has a confirmed/active booking or a manual block overlapping the given dates.
 func (r *BookingRepo) HasConflict(ctx context.Context, listingID uuid.UUID, start, end time.Time) (bool, error) {
 	query := `
 		SELECT EXISTS(
 			SELECT 1 FROM bookings
 			WHERE listing_id=$1
 			  AND status IN ('confirmed','active')
+			  AND NOT (end_date <= $2 OR start_date >= $3)
+		) OR EXISTS(
+			SELECT 1 FROM listing_blocks
+			WHERE listing_id=$1
 			  AND NOT (end_date <= $2 OR start_date >= $3)
 		)`
 	var exists bool
